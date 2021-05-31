@@ -10,6 +10,7 @@ train_iter, vocab = d2l.load_data_time_machine(batch_size, num_steps)
 num_hiddens = 256
 rnn_layer = nn.RNN(len(vocab), num_hiddens)
 state = torch.zeros((1, batch_size, num_hiddens))
+d2l.Vocab
 
 class RNNModel(nn.Module):
     def __init__(self, rnn_layer, vocab_size, **kwargs):

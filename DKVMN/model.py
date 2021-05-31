@@ -64,12 +64,13 @@ class MODEL(object):
         qa_data = mx.sym.Variable("qa_data", shape=(self.seqlen, self.batch_size))
         target = mx.sym.Variable("target", shape=(self.seqlen, self.batch_size))
 
+        # Initialize Memory
         init_memory_key = mx.sym.Variable("init_memory_key_weight")
         init_memory_value = mx.sym.Variable("init_memory_value",
                                             shape=(self.memory_size, self.memory_value_state_dim),
                                             init=mx.init.Normal(0.1))
         init_memory_value = mx.sym.broadcast_to(mx.sym.expand_dims(init_memory_value, axis=0),
-                                                shape=(self.batch_size,self.memory_size, self.memory_value_state_dim))
+                                                shape=(self.batch_size, self.memory_size, self.memory_value_state_dim))
         
         mem = DKVMN(memory_size=self.memory_size,
                     memory_key_state_dim=self.memory_key_state_dim,

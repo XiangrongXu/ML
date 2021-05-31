@@ -1,14 +1,14 @@
 import numpy as np
 import math
 
-class Data(object):
+class Data:
     def __init__(self, n_question, seqlen, separate_char, name="data"):
         """
         In the ASSISTments2009 dataset:
         param: n_question = 110
                seqlen = 200
         """
-
+        self.name = name
         self.separate_char = separate_char
         self.n_question = n_question
         self.seqlen = seqlen
@@ -37,19 +37,12 @@ class Data(object):
                     A = A[:-1]
 
                 #start to split the data
-                n_split = 1
-                if len(Q) > self.seqlen:
-                    n_split = math.floor(len(Q) / self.seqlen)
-                    if len(Q) % self.seqlen > 0:
-                        n_split = n_split + 1
+                n_split = math.ceil(len(Q) / self.seqlen)
                 
                 for k in range(n_split):
                     question_seq = []
                     answer_seq = []
-                    if k == n_split - 1:
-                        end_index = len(A)
-                    else:
-                        end_index = (k + 1) * self.seqlen
+                    end_index = (k + 1) * self.seqlen if k < n_split else len(A)
                     for i in range(k * self.seqlen, end_index):
                         if len(Q[i]) > 0:
                             X_index = int(Q[i]) + int(A[i]) * self.n_question
@@ -75,9 +68,7 @@ class Data(object):
                 
     def generate_all_index_data(self, batch_size):
         n_question = self.n_question
-        batch = math.floor(n_question / self.seqlen)
-        if self.n_question % self.seqlen > 0:
-            batch += 1
+        batch = math.ceil(n_question / self.seqlen)
 
         seq = np.arange(1, self.seqlen * batch + 1)
         zero_index = np.arange(n_question, self.seqlen * batch)

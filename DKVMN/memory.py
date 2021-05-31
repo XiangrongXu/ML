@@ -1,22 +1,25 @@
-import mxnet as mx
+import torch
+import utils
+import numpy as np
 
-class DKVMNHeadGroup:
-    def __init__(self, memory_size, memory_state_dim, is_write, name="DVKMNHeadGroup"):
+class DKVMNHeadGroup(nn.Module):
+    def __init__(self, memory_size, memory_state_dim, is_write):
         """
         params:
             memory_size: scaler
             memory_state_dim: scaler
             is_write: boolean
         """
-        self.name = name
         self.memory_size = memory_size
         self.memory_state_dim = memory_state_dim
         self.is_write = is_write
         if is_write:
-            self.erase_signal_weight = mx.sym.Variable(name=name + ":erase_signal_weight")
-            self.erase_signal_bias = mx.sym.Variable(name=name + ":erase_signal_bias")
-            self.add_signal_weight = mx.sym.Variable(name=name + ":add_signal_weight")
-            self.add_signal_bias = mx.sym.Variable(name=name + ":add_signal_bias")
+            self.erase = torch.nn.Linear(self.memory_state_dim, self.memory_state_dim, bias=True)
+            self.add = torch.nn.Linear(self.memory_state_dim, self.memory_state_dim, bias=True)
+            torch.nn.init.kaiming_normal(self.erase.weight)
+            torch.nn.init.constant(self.erase.bias, 0)
+            torch.nn.init.kaiming_normal(self.add.weight)
+            torch.nn.init.constant(self.erase.bias, 0)
         
     def get_correlation_weight_from_k(self, input_k, memory_key):
         """
@@ -28,12 +31,8 @@ class DKVMNHeadGroup:
             correlation_weight: Shape(batch_size, memory_size)
         """
         # Y = X * W.T + b
-        similarity_score = mx.sym.FullyConnected(data=input_k,
-                                                num_hidden=self.memory_size,
-                                                weight=memory_key,
-                                                no_bias=True,
-                                                name="similarity_score")
-        correlation_weight = mx.sym.SoftmaxActivation(similarity_score)
+        similarity_score = torch.matmul(input_k, torch.t(memory_key))
+        correlation_weight = torch.nn.functional.softmax(similarity_score, dim=1)
         return correlation_weight
 
     def read(self, memory_value, read_weight):
@@ -44,8 +43,9 @@ class DKVMNHeadGroup:
         returns:
             read_content: Shape(batch_size, memory_value_state_dim)
         """
-        read_weight = mx.sym.Reshape(read_weight, shape=(-1, 1, self.memory_size))
-        read_content = mx.sym.Reshape(data=mx.sym.batch_dot(read_weight, memory_value), shape=(-1, self.memory_state_dim))
+        read_weight = read_weight.reshape(shape=(-1, 1, self.memory_size))
+        read_content = torch.matmul(read_weight, memory_value)
+        read_content = read_content.reshape(shape=(-1, self.memory_state_dim))
         return read_content
 
     def write(self, input_v, memory_value, write_weight):
@@ -58,20 +58,15 @@ class DKVMNHeadGroup:
             new_memory_value: Shape(batch_size, memory_size, memory_state_dim) 
         """
         assert self.is_write
-        erase_signal = mx.sym.FullyConnected(data=input_v, num_hidden=self.memory_state_dim,
-                                            weight=self.erase_signal_weight, bias=self.erase_signal_bias)
-        erase_signal = mx.sym.Activation(data=erase_signal, act_type="sigmoid", name=self.name + "_erase_signal")
-        add_signal = mx.sym.FullyConnected(data=input_v, num_hidden=self.memory_state_dim,
-                                            weight=self.add_signal_weight, bias=self.add_signal_bias)
-        add_signal = mx.sym.Activation(data=add_signal, act_tytpe="tanh", name=self.name + "_add_signal")
-        erase_mut = 1 - mx.sym.batch_dot(mx.sym.Reshape(write_weight, shape=(-1, self.memory_size, 1)),
-                                        mx.sym.Reshape(erase_signal, shape=(-1, 1, self.memory_state_dim)))
-        aggre_add_signal = mx.sym.batch_dot(mx.sym.Reshape(write_weight, shape=(-1, self.memory_size, 1)),
-                                            mx.sym.Reshape(add_signal, shape=(-1, 1, self.memory_state_dim)))
-        new_memory_value = memory_value * erase_mut + aggre_add_signal
+        erase_signal = torch.sigmoid(self.erase(input_v)).reshape((-1, 1, self.memory_state_dim))
+        add_signal = torch.tanh(self.add(input_v)).reshape((-1, 1, self.memory_state_dim))
+        write_weight_reshape = write_weight.reshape(-1, self.memory_size, 1)
+        erase_mult = torch.matmul(write_weight_reshape, erase_signal)
+        add_mult = torch.matmul(write_weight_reshape, add_signal)
+        new_memory_value = memory_value * (1 - erase_mult) + add_mult
         return new_memory_value
 
-class DKVMN(object):
+class DKVMN:
     def __init__(self, memory_size, memory_key_state_dim, memory_value_state_dim, init_memory_key=None, init_memory_value=None,
                 name="DKVMN"):
         self.name = name
