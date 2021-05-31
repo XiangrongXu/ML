@@ -2,13 +2,12 @@ import numpy as np
 import math
 
 class Data:
-    def __init__(self, n_question, seqlen, separate_char, name="data"):
+    def __init__(self, n_question, seqlen, separate_char):
         """
         In the ASSISTments2009 dataset:
         param: n_question = 110
                seqlen = 200
         """
-        self.name = name
         self.separate_char = separate_char
         self.n_question = n_question
         self.seqlen = seqlen
