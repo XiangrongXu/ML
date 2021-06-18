@@ -73,5 +73,21 @@ def main():
 
     for idx in range(params.max_iter):
         train_loss, train_accuracy, train_auc = train(idx, model, params, optimizer, train_q_data, train_qa_data)
-        print(f"Epoch ${idx + 1}/${params.max_iter}, loss: ")
+        print(f"Epoch {idx + 1}/{params.max_iter}, loss: ")
+        valid_loss, valid_accuracy, valid_auc = test(model, params, valid_q_data, valid_qa_data)
+
+        all_train_auc[idx + 1] = train_auc
+        all_train_accuracy[idx + 1] = train_accuracy
+        all_train_loss[idx + 1] = train_loss
+        all_valid_auc[idx + 1] = valid_auc
+        all_valid_accuracy[idx + 1] = valid_accuracy
+        all_valid_loss[idx + 1] = valid_loss
+
+        if valid_auc > best_valid_auc:
+            best_valid_auc = valid_auc
+
+    print(f"best_auc: ${best_valid_auc}")
+
+if __name__ == "__main__":
+    main()
 
